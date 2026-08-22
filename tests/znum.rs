@@ -80,6 +80,15 @@ proptest! {
     #[test]
     fn const_div_is_value(x: u64, y in 1_u64..) {
         prop_assert_eq!((Znum::from_value(x) / Znum::from_value(y)).value(), Some(x / y));
+        prop_assert_eq!(
+            Znum::from_value(x).checked_div(Znum::from_value(y)),
+            Some(Znum::from_value(x / y)),
+        );
+    }
+
+    #[test]
+    fn const_checked_div_by_zero_is_none(x: u64) {
+        prop_assert_eq!(Znum::from_value(x).checked_div(Znum::from_value(0)), None);
     }
 
     #[test]
@@ -251,8 +260,8 @@ fn reduced_width_operations_contain_all_concrete_results() {
                     assert!((left + right).contains_value(a.wrapping_add(b)));
                     assert!((left - right).contains_value(a.wrapping_sub(b)));
                     assert!((left * right).contains_value(a.wrapping_mul(b)));
-                    if b != 0 {
-                        assert!((left / right).contains_value(a / b));
+                    if let Some(quotient) = a.checked_div(b) {
+                        assert!((left / right).contains_value(quotient));
                         assert!((left % right).contains_value(a % b));
                     }
                 }

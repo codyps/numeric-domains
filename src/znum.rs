@@ -122,6 +122,27 @@ impl Znum {
         }
     }
 
+    /// Divide by `other`, returning `None` when it can only be zero.
+    ///
+    /// If `other` contains both zero and nonzero values, the result describes
+    /// the divisions by its nonzero values.
+    pub fn checked_div(self, other: Self) -> Option<Self> {
+        if other.max_value() == Some(0) {
+            return None;
+        }
+
+        if !self.has_value() || !other.has_value() {
+            return Some(Self { z: 0, o: 0 });
+        }
+
+        match (self.value(), other.value()) {
+            (Some(dividend), Some(divisor)) => {
+                Some(Self::from_value(dividend.checked_div(divisor)?))
+            }
+            _ => Some(Self::default()),
+        }
+    }
+
     /*
     /// All elements in `other` are also elements in `self`
     pub fn is_subset(&self, other: Self) -> bool {
@@ -367,16 +388,7 @@ impl Div for Znum {
     type Output = Znum;
 
     fn div(self, other: Self) -> Self {
-        if !self.has_value() || !other.has_value() || other.max_value() == Some(0) {
-            return Self { z: 0, o: 0 };
-        }
-
-        match (self.value(), other.value()) {
-            (Some(dividend), Some(divisor)) if divisor != 0 => Self::from_value(dividend / divisor),
-            // Division is partial: zero-divisor pairs have no result. A fully
-            // unknown value safely covers all remaining concrete pairs.
-            _ => Self::default(),
-        }
+        self.checked_div(other).unwrap_or(Self { z: 0, o: 0 })
     }
 }
 
