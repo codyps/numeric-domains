@@ -67,6 +67,27 @@ proptest! {
     }
 
     #[test]
+    fn const_neg_is_wrapping_value(x: u64) {
+        prop_assert_eq!((-Znum::from_value(x)).value(), Some(x.wrapping_neg()));
+    }
+
+    #[test]
+    fn const_mul_is_wrapping_value(x: u64, y: u64) {
+        let result = Znum::from_value(x) * Znum::from_value(y);
+        prop_assert_eq!(result.value(), Some(x.wrapping_mul(y)));
+    }
+
+    #[test]
+    fn const_div_is_value(x: u64, y in 1_u64..) {
+        prop_assert_eq!((Znum::from_value(x) / Znum::from_value(y)).value(), Some(x / y));
+    }
+
+    #[test]
+    fn const_rem_is_value(x: u64, y in 1_u64..) {
+        prop_assert_eq!((Znum::from_value(x) % Znum::from_value(y)).value(), Some(x % y));
+    }
+
+    #[test]
     fn union_of_constants_contains_both(x: u64, y: u64) {
         let left = Znum::from_value(x);
         let right = Znum::from_value(y);
@@ -128,6 +149,22 @@ fn empty_domain_is_absorbing_for_subtraction() {
     let empty = Znum::from_parts(0, 0);
     assert!(!(empty - Znum::from_value(1)).has_value());
     assert!(!(Znum::from_value(1) - empty).has_value());
+}
+
+#[test]
+fn empty_domain_and_zero_divisors_have_no_arithmetic_results() {
+    let empty = Znum::from_parts(0, 0);
+    let one = Znum::from_value(1);
+    let zero = Znum::from_value(0);
+    assert!(!(-empty).has_value());
+    assert!(!(empty * one).has_value());
+    assert!(!(one * empty).has_value());
+    assert!(!(empty / one).has_value());
+    assert!(!(one / empty).has_value());
+    assert!(!(empty % one).has_value());
+    assert!(!(one % empty).has_value());
+    assert!(!(one / zero).has_value());
+    assert!(!(one % zero).has_value());
 }
 
 #[test]
@@ -213,6 +250,11 @@ fn reduced_width_operations_contain_all_concrete_results() {
                     assert!((left ^ right).contains_value(a ^ b));
                     assert!((left + right).contains_value(a.wrapping_add(b)));
                     assert!((left - right).contains_value(a.wrapping_sub(b)));
+                    assert!((left * right).contains_value(a.wrapping_mul(b)));
+                    if b != 0 {
+                        assert!((left / right).contains_value(a / b));
+                        assert!((left % right).contains_value(a % b));
+                    }
                 }
             }
         }

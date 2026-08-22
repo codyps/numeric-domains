@@ -1,4 +1,4 @@
-use core::ops::{Add, BitAnd, BitOr, BitXor, Not, Shl, Shr, Sub};
+use core::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
 
 /// Tracks which bits "may be 1s" (o) and "may be 0s" (z)
 ///
@@ -329,32 +329,68 @@ impl Add for Znum {
 }
 */
 
-/*
 impl Neg for Znum {
     type Output = Znum;
+
     fn neg(self) -> Self {
-        unimplemented!()
+        Self::from_value(0) - self
     }
 }
 
 impl Mul for Znum {
     type Output = Znum;
+
     fn mul(self, other: Self) -> Self {
-        unimplemented!()
+        if !self.has_value() || !other.has_value() {
+            return Self { z: 0, o: 0 };
+        }
+
+        // Abstract shift-and-add multiplication. At an unknown multiplier
+        // bit, union the products obtained by omitting and adding the term.
+        let mut product = Self::from_value(0);
+        for bit in 0_u8..64 {
+            let mask = 1_u64 << bit;
+            if self.o & mask != 0 {
+                let with_bit = product + (other << bit);
+                product = if self.z & mask != 0 {
+                    product.union(with_bit)
+                } else {
+                    with_bit
+                };
+            }
+        }
+        product
     }
 }
 
 impl Div for Znum {
     type Output = Znum;
+
     fn div(self, other: Self) -> Self {
-        unimplemented!()
+        if !self.has_value() || !other.has_value() || other.max_value() == Some(0) {
+            return Self { z: 0, o: 0 };
+        }
+
+        match (self.value(), other.value()) {
+            (Some(dividend), Some(divisor)) if divisor != 0 => Self::from_value(dividend / divisor),
+            // Division is partial: zero-divisor pairs have no result. A fully
+            // unknown value safely covers all remaining concrete pairs.
+            _ => Self::default(),
+        }
     }
 }
 
 impl Rem for Znum {
     type Output = Znum;
+
     fn rem(self, other: Self) -> Self {
-        unimplemented!()
+        if !self.has_value() || !other.has_value() || other.max_value() == Some(0) {
+            return Self { z: 0, o: 0 };
+        }
+
+        match (self.value(), other.value()) {
+            (Some(dividend), Some(divisor)) if divisor != 0 => Self::from_value(dividend % divisor),
+            _ => Self::default(),
+        }
     }
 }
-*/
