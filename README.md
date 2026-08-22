@@ -1,4 +1,19 @@
-# bit-domains: abstract domains fixed-width numerical values
+# numeric-domains: abstract domains for fixed-width numeric values
+
+Experimental Rust implementations of several abstract domains for 64-bit machine integers:
+
+- `Tnum`: known-value/unknown-mask tracking numbers. Arithmetic wraps at 64 bits and shift counts
+  are reduced modulo 64.
+- `Znum`: tracks whether each bit may be zero and/or one. Addition wraps at 64 bits and shift
+  counts are reduced modulo 64.
+- `Rnum`: a range representation with independent signed and unsigned bounds.
+
+All three domains provide constant and membership queries, extrema, and signed/unsigned bound
+inspection. They also provide `union` (the least representable domain containing both operands) and
+`intersection` (the values common to both operands), including empty intersections. `Tnum` and
+`Znum` additionally support bitwise operations and wrapping addition.
+
+This crate is experimental and is not yet published as a stable API.
 
 # Misc
 

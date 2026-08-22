@@ -1,7 +1,0 @@
-[package]
-name = "znum"
-version = "0.1.0"
-edition = "2021"
-
-[dev-dependencies]
-quickcheck = "1"

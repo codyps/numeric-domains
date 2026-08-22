@@ -1,4 +1,4 @@
-use core::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Not, Rem, Shl, Shr, Sub};
+use core::ops::{Add, BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
 /// Tracks which bits "may be 1s" (o) and "may be 0s" (z)
 ///
@@ -63,9 +63,7 @@ impl Znum {
         !(po | pz) == 0
     }
 
-    /// Return a domain containing the values is `self` and the values in `other`
-    ///
-    /// Addative.
+    /// Return the least Z-domain containing every value in either operand.
     pub fn union(&self, other: Self) -> Self {
         Znum {
             o: self.o | other.o,
@@ -75,14 +73,10 @@ impl Znum {
 
     /// `self` includes all possible elements in `other`
     pub fn contains(&self, other: Self) -> bool {
-        let po = self.o & other.o;
-        let pz = self.z & other.z;
-        !(po | pz) == 0
+        other.o & !self.o == 0 && other.z & !self.z == 0
     }
 
-    /// Return a domain containing only the values that exist in both `self` and `other`.
-    ///
-    /// Subtractive.
+    /// Return the values represented by both operands.
     pub fn intersection(&self, other: Self) -> Self {
         Znum {
             o: self.o & other.o,
@@ -110,6 +104,23 @@ impl Znum {
         }
     }
 
+    pub fn unsigned_bounds(&self) -> Option<(u64, u64)> {
+        Some((self.min_value()?, self.max_value()?))
+    }
+
+    pub fn signed_bounds(&self) -> Option<(i64, i64)> {
+        const SIGN: u64 = 1 << 63;
+        if !self.has_value() {
+            return None;
+        }
+        match (self.z & SIGN != 0, self.o & SIGN != 0) {
+            (true, true) => Some((((self.o & !self.z) | SIGN) as i64, (self.o & !SIGN) as i64)),
+            (true, false) => Some(((self.o & !self.z) as i64, self.o as i64)),
+            (false, true) => Some(((self.o & !self.z) as i64, self.o as i64)),
+            (false, false) => None,
+        }
+    }
+
     /*
     /// All elements in `other` are also elements in `self`
     pub fn is_subset(&self, other: Self) -> bool {
@@ -122,6 +133,16 @@ impl Znum {
         todo!()
     }
     */
+}
+
+impl Default for Znum {
+    /// Default is a completely unknown value.
+    fn default() -> Self {
+        Self {
+            z: u64::MAX,
+            o: u64::MAX,
+        }
+    }
 }
 
 impl BitOr for Znum {
@@ -164,13 +185,44 @@ impl Not for Znum {
     }
 }
 
+impl Add for Znum {
+    type Output = Znum;
+
+    fn add(self, other: Self) -> Self {
+        // An undefined bit makes the represented Cartesian product empty.
+        if !self.has_value() || !other.has_value() {
+            return Self { z: 0, o: 0 };
+        }
+
+        // Convert may-zero/may-one bits to the equivalent known-value and
+        // unknown-mask representation, propagate carries, then convert back.
+        let left_value = self.o & !self.z;
+        let left_mask = self.o & self.z;
+        let right_value = other.o & !other.z;
+        let right_mask = other.o & other.z;
+
+        let mask_sum = left_mask.wrapping_add(right_mask);
+        let value_sum = left_value.wrapping_add(right_value);
+        let sigma = mask_sum.wrapping_add(value_sum);
+        let carry_changes = sigma ^ value_sum;
+        let mask = carry_changes | left_mask | right_mask;
+        let value = value_sum & !mask;
+
+        Self {
+            o: value | mask,
+            z: !value | mask,
+        }
+    }
+}
+
 impl Shl<u8> for Znum {
     type Output = Znum;
     fn shl(self, shift: u8) -> Self {
+        let shift = u32::from(shift).rem_euclid(64);
         // ones move up, zeros move up, empty space filled by zeros
         Self {
-            z: self.z << shift | ((1 << shift) - 1),
-            o: self.o << shift,
+            z: self.z.wrapping_shl(shift) | (1_u64.wrapping_shl(shift) - 1),
+            o: self.o.wrapping_shl(shift),
         }
     }
 }
@@ -178,6 +230,7 @@ impl Shl<u8> for Znum {
 impl Shr<u8> for Znum {
     type Output = Znum;
     fn shr(self, shift: u8) -> Self {
+        let shift = u32::from(shift).rem_euclid(64);
         // ones move down, zeros move down, empty space filled by zeros
         //
         // note: this special case with zero prevents us from shifting by 64bits (and getting a
@@ -185,12 +238,12 @@ impl Shr<u8> for Znum {
         let nz = if shift == 0 {
             0
         } else {
-            ((1 << shift) - 1) << (64 - shift)
+            (u64::MAX).wrapping_shl(64 - shift)
         };
 
         Self {
-            z: self.z >> shift | nz,
-            o: self.o >> shift,
+            z: self.z.wrapping_shr(shift) | nz,
+            o: self.o.wrapping_shr(shift),
         }
     }
 }

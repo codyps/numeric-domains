@@ -1,4 +1,7 @@
-[workspace]
-members = [
-	"znum", "tnum", "rnum"
-]
+[package]
+name = "numeric-domains"
+version = "0.1.0"
+edition = "2021"
+
+[dev-dependencies]
+proptest = "1.11.0"
