@@ -160,6 +160,9 @@ impl<const K: usize> Add for BitRange<K> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
+        if self.is_empty() || other.is_empty() {
+            return Self::new(RangeSet::empty(), Tnum::empty());
+        }
         Self::new(self.ranges + other.ranges, self.bits + other.bits)
     }
 }

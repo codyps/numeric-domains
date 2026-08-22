@@ -80,6 +80,15 @@ fn reduced_product_detects_disjoint_holey_components() {
     assert!(value.is_empty());
 }
 
+#[test]
+fn addition_preserves_cross_component_emptiness() {
+    let empty = BitRange::<2>::new(RangeSet::from_range(4, 8), Tnum::from_parts(2, 9));
+
+    assert!(empty.is_empty());
+    assert!((empty + BitRange::from_value(1)).is_empty());
+    assert!((BitRange::from_value(1) + empty).is_empty());
+}
+
 proptest! {
     #[test]
     fn wrapped_add_contains_concrete_results(
