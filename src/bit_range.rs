@@ -50,7 +50,14 @@ impl<const K: usize> BitRange<K> {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.ranges.is_empty() || !self.bits.has_value()
+        let Some((value, mask)) = self.bits.parts() else {
+            return true;
+        };
+        !self
+            .ranges
+            .ranges()
+            .iter()
+            .any(|&(low, high)| tnum_intersects_range(value, mask, low, high))
     }
 
     pub fn union(self, other: Self) -> Self {
@@ -103,6 +110,44 @@ impl<const K: usize> BitRange<K> {
             self.bits = Tnum::empty();
         }
     }
+}
+
+/// Whether a canonical tnum has a concrete value in the inclusive interval.
+fn tnum_intersects_range(value: u64, mask: u64, low: u64, high: u64) -> bool {
+    // Build the smallest permitted value greater than or equal to `low`, one
+    // bit at a time. `equal` follows `low`; `greater` is already above it and
+    // therefore takes the smallest permitted suffix.
+    let mut equal = Some(0_u64);
+    let mut greater: Option<u64> = None;
+    for bit in (0..64).rev() {
+        let bit_mask = 1_u64 << bit;
+        let may_zero = value & bit_mask == 0;
+        let may_one = value & bit_mask != 0 || mask & bit_mask != 0;
+
+        if let Some(prefix) = greater {
+            greater = if may_zero {
+                Some(prefix)
+            } else if may_one {
+                Some(prefix | bit_mask)
+            } else {
+                None
+            };
+        }
+
+        if let Some(prefix) = equal {
+            if low & bit_mask == 0 {
+                if may_one {
+                    let candidate = prefix | bit_mask;
+                    greater = Some(greater.map_or(candidate, |current| current.min(candidate)));
+                }
+                equal = may_zero.then_some(prefix);
+            } else {
+                equal = may_one.then_some(prefix | bit_mask);
+            }
+        }
+    }
+
+    equal.or(greater).is_some_and(|candidate| candidate <= high)
 }
 
 impl<const K: usize> Default for BitRange<K> {

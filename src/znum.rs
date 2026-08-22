@@ -66,6 +66,12 @@ impl Znum {
 
     /// Return the least Z-domain containing every value in either operand.
     pub fn union(&self, other: Self) -> Self {
+        if !self.has_value() {
+            return other;
+        }
+        if !other.has_value() {
+            return *self;
+        }
         Znum {
             o: self.o | other.o,
             z: self.z | other.z,
@@ -273,6 +279,9 @@ impl Sub for Znum {
 impl Shl<u8> for Znum {
     type Output = Znum;
     fn shl(self, shift: u8) -> Self {
+        if !self.has_value() {
+            return Self { z: 0, o: 0 };
+        }
         let shift = u32::from(shift).rem_euclid(64);
         // ones move up, zeros move up, empty space filled by zeros
         Self {
@@ -285,6 +294,9 @@ impl Shl<u8> for Znum {
 impl Shr<u8> for Znum {
     type Output = Znum;
     fn shr(self, shift: u8) -> Self {
+        if !self.has_value() {
+            return Self { z: 0, o: 0 };
+        }
         let shift = u32::from(shift).rem_euclid(64);
         // ones move down, zeros move down, empty space filled by zeros
         //

@@ -63,7 +63,8 @@ impl Rnum {
 
     /// Whether this domain includes `value` in both interpretations.
     pub fn contains_value(&self, value: u64) -> bool {
-        self.min <= value
+        !self.empty
+            && self.min <= value
             && value <= self.max
             && self.smin <= value as i64
             && (value as i64) <= self.smax

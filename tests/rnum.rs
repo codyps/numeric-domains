@@ -63,5 +63,6 @@ fn union_and_intersection_have_set_semantics() {
 
     let empty = Rnum::from_value(1).intersection(Rnum::from_value(2));
     assert!(!empty.has_value());
+    assert!(!empty.contains_value(0));
     assert!(empty.union(left).contains(left));
 }

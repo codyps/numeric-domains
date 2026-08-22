@@ -70,6 +70,16 @@ fn incompatible_components_reduce_to_empty() {
     assert!(value.is_empty());
 }
 
+#[test]
+fn reduced_product_detects_disjoint_holey_components() {
+    let ranges = RangeSet::<2>::from_range(1, 3).union(RangeSet::from_range(5, 7));
+    let value = BitRange::new(ranges, Tnum::from_parts(0, 4));
+
+    assert!(!value.contains_value(0));
+    assert!(!value.contains_value(4));
+    assert!(value.is_empty());
+}
+
 proptest! {
     #[test]
     fn wrapped_add_contains_concrete_results(

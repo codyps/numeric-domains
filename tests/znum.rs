@@ -161,6 +161,23 @@ fn empty_domain_is_absorbing_for_subtraction() {
 }
 
 #[test]
+fn every_empty_encoding_is_the_union_identity() {
+    let empty = Znum::from_parts(1, 0);
+    let zero = Znum::from_value(0);
+    assert!(!empty.has_value());
+    assert_eq!(empty.union(zero), zero);
+    assert_eq!(zero.union(empty), zero);
+}
+
+#[test]
+fn shifts_preserve_empty_domains() {
+    let missing_sign_bit = Znum::from_parts(0, u64::MAX >> 1);
+    let missing_low_bit = Znum::from_parts(0, u64::MAX << 1);
+    assert!(!(missing_sign_bit << 1).has_value());
+    assert!(!(missing_low_bit >> 1).has_value());
+}
+
+#[test]
 fn empty_domain_and_zero_divisors_have_no_arithmetic_results() {
     let empty = Znum::from_parts(0, 0);
     let one = Znum::from_value(1);
