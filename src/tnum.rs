@@ -38,7 +38,7 @@ impl Tnum {
     ///
     /// Value bits covered by the mask are cleared to maintain the canonical
     /// `value & mask == 0` representation.
-    pub fn from_parts(value: u64, mask: u64) -> Self {
+    pub const fn from_parts(value: u64, mask: u64) -> Self {
         Self {
             value: value & !mask,
             mask,
@@ -46,7 +46,7 @@ impl Tnum {
         }
     }
 
-    pub fn from_value(value: u64) -> Self {
+    pub const fn from_value(value: u64) -> Self {
         Self {
             value,
             mask: 0,
@@ -55,15 +55,19 @@ impl Tnum {
     }
 
     /// Return the canonical `(known_value, unknown_mask)` representation.
-    pub fn parts(&self) -> Option<(u64, u64)> {
-        (!self.empty).then_some((self.value, self.mask))
+    pub const fn parts(&self) -> Option<(u64, u64)> {
+        if self.empty {
+            None
+        } else {
+            Some((self.value, self.mask))
+        }
     }
 
-    pub fn is_const(&self) -> bool {
+    pub const fn is_const(&self) -> bool {
         !self.empty && self.mask == 0
     }
 
-    pub fn value(&self) -> Option<u64> {
+    pub const fn value(&self) -> Option<u64> {
         if self.is_const() {
             Some(self.value)
         } else {
@@ -72,12 +76,12 @@ impl Tnum {
     }
 
     /// Whether this abstract value includes `value`.
-    pub fn contains_value(&self, value: u64) -> bool {
+    pub const fn contains_value(&self, value: u64) -> bool {
         !self.empty && value & !self.mask == self.value
     }
 
     /// Return the least tracking number containing both operands.
-    pub fn union(self, other: Self) -> Self {
+    pub const fn union(self, other: Self) -> Self {
         if self.empty {
             return other;
         }
@@ -90,7 +94,7 @@ impl Tnum {
     }
 
     /// Return the values represented by both operands.
-    pub fn intersection(self, other: Self) -> Self {
+    pub const fn intersection(self, other: Self) -> Self {
         if self.empty || other.empty {
             return Self::empty();
         }
@@ -102,35 +106,43 @@ impl Tnum {
         }
     }
 
-    pub fn is_defined(&self) -> bool {
+    pub const fn is_defined(&self) -> bool {
         !self.empty
     }
 
     /// Whether this tracking number includes every value in `other`.
-    pub fn contains(&self, other: Self) -> bool {
+    pub const fn contains(&self, other: Self) -> bool {
         other.empty
             || (!self.empty
                 && other.mask & !self.mask == 0
                 && other.value & !self.mask == self.value)
     }
 
-    pub fn has_value(&self) -> bool {
+    pub const fn has_value(&self) -> bool {
         !self.empty
     }
 
-    pub fn min_value(&self) -> Option<u64> {
-        (!self.empty).then_some(self.value)
+    pub const fn min_value(&self) -> Option<u64> {
+        if self.empty {
+            None
+        } else {
+            Some(self.value)
+        }
     }
 
-    pub fn max_value(&self) -> Option<u64> {
-        (!self.empty).then_some(self.value | self.mask)
+    pub const fn max_value(&self) -> Option<u64> {
+        if self.empty {
+            None
+        } else {
+            Some(self.value | self.mask)
+        }
     }
 
-    pub fn unsigned_bounds(&self) -> (u64, u64) {
+    pub const fn unsigned_bounds(&self) -> (u64, u64) {
         (self.value, self.value | self.mask)
     }
 
-    pub fn signed_bounds(&self) -> (i64, i64) {
+    pub const fn signed_bounds(&self) -> (i64, i64) {
         const SIGN: u64 = 1 << 63;
         if self.mask & SIGN != 0 {
             (
@@ -140,6 +152,82 @@ impl Tnum {
         } else {
             (self.value as i64, (self.value | self.mask) as i64)
         }
+    }
+
+    pub const fn bit_not(self) -> Self {
+        if self.empty {
+            return self;
+        }
+        Self {
+            value: !self.value & !self.mask,
+            mask: self.mask,
+            empty: false,
+        }
+    }
+
+    pub const fn bit_or(self, other: Self) -> Self {
+        if self.empty || other.empty {
+            return Self::empty();
+        }
+        let value = self.value | other.value;
+        let mask = (self.mask | other.mask) & !value;
+        Self {
+            value,
+            mask,
+            empty: false,
+        }
+    }
+
+    pub const fn bit_and(self, other: Self) -> Self {
+        if self.empty || other.empty {
+            return Self::empty();
+        }
+        let value = self.value & other.value;
+        let may_be_one = (self.value | self.mask) & (other.value | other.mask);
+        Self::from_parts(value, may_be_one & !value)
+    }
+
+    pub const fn bit_xor(self, other: Self) -> Self {
+        if self.empty || other.empty {
+            return Self::empty();
+        }
+        Self::from_parts(self.value ^ other.value, self.mask | other.mask)
+    }
+
+    pub const fn shift_left(self, shift: u8) -> Self {
+        if self.empty {
+            return self;
+        }
+        let shift = (shift as u32) % 64;
+        Self {
+            value: self.value.wrapping_shl(shift),
+            mask: self.mask.wrapping_shl(shift),
+            empty: false,
+        }
+    }
+
+    pub const fn shift_right(self, shift: u8) -> Self {
+        if self.empty {
+            return self;
+        }
+        let shift = (shift as u32) % 64;
+        Self {
+            value: self.value.wrapping_shr(shift),
+            mask: self.mask.wrapping_shr(shift),
+            empty: false,
+        }
+    }
+
+    pub const fn add(self, other: Self) -> Self {
+        if self.empty || other.empty {
+            return Self::empty();
+        }
+        let mask_sum = self.mask.wrapping_add(other.mask);
+        let value_sum = self.value.wrapping_add(other.value);
+        let sigma = mask_sum.wrapping_add(value_sum);
+        let carry_changes = sigma ^ value_sum;
+        let mask = carry_changes | self.mask | other.mask;
+        Self::from_parts(value_sum, mask)
     }
 }
 
@@ -157,107 +245,49 @@ impl Default for Tnum {
 impl Not for Tnum {
     type Output = Tnum;
     fn not(self) -> Self {
-        if self.empty {
-            return self;
-        }
-        Self {
-            value: !self.value & !self.mask,
-            mask: self.mask,
-            empty: false,
-        }
+        self.bit_not()
     }
 }
 
 impl BitOr for Tnum {
     type Output = Tnum;
     fn bitor(self, other: Self) -> Self {
-        if self.empty || other.empty {
-            return Self::empty();
-        }
-        // algorithm from https://www.omnimaga.org/computer-programming/addition-in-the-bitfield-domain/
-        // (m1, v1) | (m2, v2) = ((m1 & m2) | v1 | v2, v1 | v2)   // both known or one of them is 1
-        let v1 = self.value | other.value;
-        let m1 = self.mask | other.mask;
-        // bit-wise saturation
-        let m2 = m1 & !v1;
-
-        Self {
-            value: v1,
-            mask: m2,
-            empty: false,
-        }
+        self.bit_or(other)
     }
 }
 
 impl BitAnd for Tnum {
     type Output = Tnum;
     fn bitand(self, other: Self) -> Self {
-        if self.empty || other.empty {
-            return Self::empty();
-        }
-        let value = self.value & other.value;
-        let may_be_one = (self.value | self.mask) & (other.value | other.mask);
-        Self::from_parts(value, may_be_one & !value)
+        self.bit_and(other)
     }
 }
 
 impl BitXor for Tnum {
     type Output = Tnum;
     fn bitxor(self, other: Self) -> Self {
-        if self.empty || other.empty {
-            return Self::empty();
-        }
-        let mask = self.mask | other.mask;
-        Self::from_parts(self.value ^ other.value, mask)
+        self.bit_xor(other)
     }
 }
 
 impl Shl<u8> for Tnum {
     type Output = Tnum;
     fn shl(self, shift: u8) -> Self {
-        if self.empty {
-            return self;
-        }
-        let shift = u32::from(shift).rem_euclid(64);
-        Self {
-            value: self.value.wrapping_shl(shift),
-            mask: self.mask.wrapping_shl(shift),
-            empty: false,
-        }
+        self.shift_left(shift)
     }
 }
 
 impl Shr<u8> for Tnum {
     type Output = Tnum;
     fn shr(self, shift: u8) -> Self {
-        if self.empty {
-            return self;
-        }
-        let shift = u32::from(shift).rem_euclid(64);
-        Self {
-            value: self.value.wrapping_shr(shift),
-            mask: self.mask.wrapping_shr(shift),
-            empty: false,
-        }
+        self.shift_right(shift)
     }
 }
 
 impl Add for Tnum {
     type Output = Tnum;
     fn add(self, other: Self) -> Self::Output {
-        if self.empty || other.empty {
-            return Self::empty();
-        }
-        // Carry propagation can make every bit at and above an unknown input
-        // bit unknown. This is the algorithm used by Linux's `tnum_add`:
-        // https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/kernel/bpf/tnum.c
-        // All additions intentionally use machine wrapping.
-        let mask_sum = self.mask.wrapping_add(other.mask);
-        let value_sum = self.value.wrapping_add(other.value);
-        let sigma = mask_sum.wrapping_add(value_sum);
-        let carry_changes = sigma ^ value_sum;
-        let mask = carry_changes | self.mask | other.mask;
-        Self::from_parts(value_sum, mask)
+        self.add(other)
     }
 }
 

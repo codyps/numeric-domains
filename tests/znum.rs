@@ -1,6 +1,27 @@
 use numeric_domains::Znum;
 use proptest::prelude::*;
 
+const CONST_ONE: Znum = Znum::from_value(1);
+const CONST_TWO: Znum = Znum::from_parts(2, !2);
+const CONST_UNION: Znum = CONST_ONE.union(CONST_TWO);
+const CONST_EMPTY: Znum = CONST_ONE.intersection(CONST_TWO);
+const CONST_CONTAINS_ONE: bool = CONST_UNION.contains(CONST_ONE);
+const CONST_UNSIGNED_BOUNDS: Option<(u64, u64)> = CONST_UNION.unsigned_bounds();
+const CONST_SIGNED_BOUNDS: Option<(i64, i64)> = CONST_UNION.signed_bounds();
+const CONST_DIVISION: Option<Znum> = CONST_TWO.checked_div(CONST_ONE);
+const CONST_NOT: Znum = CONST_ONE.bit_not();
+const CONST_OR: Znum = CONST_ONE.bit_or(CONST_TWO);
+const CONST_AND: Znum = CONST_ONE.bit_and(CONST_TWO);
+const CONST_XOR: Znum = CONST_ONE.bit_xor(CONST_TWO);
+const CONST_SUM: Znum = CONST_ONE.add(CONST_TWO);
+const CONST_DIFFERENCE: Znum = CONST_ONE.subtract(CONST_TWO);
+const CONST_SHL: Znum = CONST_ONE.shift_left(1);
+const CONST_SHR: Znum = CONST_TWO.shift_right(1);
+const CONST_NEGATION: Znum = CONST_ONE.negate();
+const CONST_PRODUCT: Znum = CONST_TWO.multiply(CONST_TWO);
+const CONST_QUOTIENT: Znum = CONST_TWO.divide(CONST_ONE);
+const CONST_REMAINDER: Znum = CONST_TWO.remainder(CONST_ONE);
+
 proptest! {
     #[test]
     fn const_value_roundtrip(x: u64) {
@@ -135,12 +156,34 @@ proptest! {
 }
 
 #[test]
+fn common_operations_are_available_in_const_contexts() {
+    assert!(CONST_CONTAINS_ONE);
+    assert_eq!(CONST_UNSIGNED_BOUNDS, Some((0, 3)));
+    assert_eq!(CONST_SIGNED_BOUNDS, Some((0, 3)));
+    assert_eq!(CONST_DIVISION, Some(CONST_TWO));
+    assert!(!CONST_EMPTY.has_value());
+    assert_eq!(CONST_NOT, !CONST_ONE);
+    assert_eq!(CONST_OR, CONST_ONE | CONST_TWO);
+    assert_eq!(CONST_AND, CONST_ONE & CONST_TWO);
+    assert_eq!(CONST_XOR, CONST_ONE ^ CONST_TWO);
+    assert_eq!(CONST_SUM, CONST_ONE + CONST_TWO);
+    assert_eq!(CONST_DIFFERENCE, CONST_ONE - CONST_TWO);
+    assert_eq!(CONST_SHL, CONST_ONE << 1);
+    assert_eq!(CONST_SHR, CONST_TWO >> 1);
+    assert_eq!(CONST_NEGATION, -CONST_ONE);
+    assert_eq!(CONST_PRODUCT, CONST_TWO * CONST_TWO);
+    assert_eq!(CONST_QUOTIENT, CONST_TWO / CONST_ONE);
+    assert_eq!(CONST_REMAINDER, CONST_TWO % CONST_ONE);
+}
+
+#[test]
 fn instance_is_defined() {
-    assert!(!Znum::from_parts(0, 0).is_defined());
-    assert!(!Znum::from_parts(0, 1).is_defined());
-    assert!(!Znum::from_parts(1, 1).is_defined());
-    assert!(!Znum::from_parts(1, 0).is_defined());
-    assert!(!Znum::from_parts(0xfffffffffffffffe, 0xfffffffffffffffe).is_defined());
+    let empty = Znum::from_parts(0, 0);
+    for encoding in [(0, 1), (1, 1), (1, 0), (!1, !1)] {
+        let value = Znum::from_parts(encoding.0, encoding.1);
+        assert!(!value.is_defined());
+        assert_eq!(value, empty);
+    }
     assert!(Znum::from_parts(0xfffffffffffffffe, 0xffffffffffffffff).is_defined());
     assert!(Znum::from_parts(0xffffffffffffffff, 0xfffffffffffffffe).is_defined());
     assert!(Znum::from_parts(0xffffffffffffffff, 0xffffffffffffffff).is_defined());
@@ -158,6 +201,28 @@ fn empty_domain_is_absorbing_for_subtraction() {
     let empty = Znum::from_parts(0, 0);
     assert!(!(empty - Znum::from_value(1)).has_value());
     assert!(!(Znum::from_value(1) - empty).has_value());
+}
+
+#[test]
+fn every_empty_encoding_is_absorbing_for_bitwise_operations() {
+    let empty_encodings = [
+        Znum::from_parts(0, 0),
+        Znum::from_parts(1, 0),
+        Znum::from_parts(0, u64::MAX - 1),
+    ];
+    let values = [Znum::from_value(0), Znum::from_value(1), Znum::default()];
+
+    for empty in empty_encodings {
+        assert!(!empty.has_value());
+        for value in values {
+            assert!(!(empty | value).has_value());
+            assert!(!(value | empty).has_value());
+            assert!(!(empty & value).has_value());
+            assert!(!(value & empty).has_value());
+            assert!(!(empty ^ value).has_value());
+            assert!(!(value ^ empty).has_value());
+        }
+    }
 }
 
 #[test]
@@ -199,6 +264,19 @@ fn contains_requires_all_other_possibilities() {
     let low_bit_unknown = Znum::from_parts(1, u64::MAX);
     assert!(!zero.contains(low_bit_unknown));
     assert!(low_bit_unknown.contains(zero));
+
+    let empty_encodings = [
+        Znum::from_parts(0, 0),
+        Znum::from_parts(1, 0),
+        Znum::from_value(1).intersection(Znum::from_value(3)),
+    ];
+    for empty in empty_encodings {
+        assert!(!empty.has_value());
+        assert!(zero.contains(empty));
+        assert!(Znum::default().contains(empty));
+        assert!(empty.contains(empty));
+        assert!(!empty.contains(zero));
+    }
 }
 
 #[test]

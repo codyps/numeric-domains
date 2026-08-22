@@ -1,6 +1,27 @@
 use numeric_domains::Tnum;
 use proptest::prelude::*;
 
+const CONST_ONE: Tnum = Tnum::from_value(1);
+const CONST_TWO: Tnum = Tnum::from_value(2);
+const CONST_NOT: Tnum = CONST_ONE.bit_not();
+const CONST_OR: Tnum = CONST_ONE.bit_or(CONST_TWO);
+const CONST_AND: Tnum = CONST_ONE.bit_and(CONST_TWO);
+const CONST_XOR: Tnum = CONST_ONE.bit_xor(CONST_TWO);
+const CONST_SHL: Tnum = CONST_ONE.shift_left(1);
+const CONST_SHR: Tnum = CONST_TWO.shift_right(1);
+const CONST_SUM: Tnum = CONST_ONE.add(CONST_TWO);
+
+#[test]
+fn operators_have_const_inherent_equivalents() {
+    assert_eq!(CONST_NOT, !CONST_ONE);
+    assert_eq!(CONST_OR, CONST_ONE | CONST_TWO);
+    assert_eq!(CONST_AND, CONST_ONE & CONST_TWO);
+    assert_eq!(CONST_XOR, CONST_ONE ^ CONST_TWO);
+    assert_eq!(CONST_SHL, CONST_ONE << 1);
+    assert_eq!(CONST_SHR, CONST_TWO >> 1);
+    assert_eq!(CONST_SUM, CONST_ONE + CONST_TWO);
+}
+
 proptest! {
     // NOTE: the domain of non-overflowing addition is smaller than the full range of the `u64`.
     // Minimally shrink things. This is really nasty, and there should be a simpler way to do

@@ -1,5 +1,26 @@
 use numeric_domains::Rnum;
 
+const CONST_ONE: Rnum = Rnum::from_value(1);
+const CONST_TWO: Rnum = Rnum::from_value(2);
+const CONST_SUM: Rnum = CONST_ONE.add(CONST_TWO);
+const CONST_DIFFERENCE: Rnum = CONST_ONE.subtract(CONST_TWO);
+const CONST_NEGATION: Rnum = CONST_ONE.negate();
+const CONST_NOT: Rnum = CONST_ONE.bit_not();
+const CONST_PRODUCT: Rnum = CONST_TWO.multiply(CONST_TWO);
+const CONST_DIVISION: Rnum = CONST_TWO.divide(CONST_ONE);
+const CONST_REMAINDER: Rnum = CONST_TWO.remainder(CONST_ONE);
+
+#[test]
+fn operators_have_const_inherent_equivalents() {
+    assert_eq!(CONST_SUM, CONST_ONE + CONST_TWO);
+    assert_eq!(CONST_DIFFERENCE, CONST_ONE - CONST_TWO);
+    assert_eq!(CONST_NEGATION, -CONST_ONE);
+    assert_eq!(CONST_NOT, !CONST_ONE);
+    assert_eq!(CONST_PRODUCT, CONST_TWO * CONST_TWO);
+    assert_eq!(CONST_DIVISION, CONST_TWO / CONST_ONE);
+    assert_eq!(CONST_REMAINDER, CONST_TWO % CONST_ONE);
+}
+
 #[test]
 fn constructs_valid_ranges() {
     let range = Rnum::new(1, 10, -4, 7).expect("valid bounds");
