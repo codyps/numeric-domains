@@ -228,65 +228,143 @@ impl Rnum {
         }
     }
 
+    const fn bounded(min: u64, max: u64, smin: i64, smax: i64) -> Self {
+        let result = Self {
+            min,
+            max,
+            smin,
+            smax,
+            empty: false,
+        };
+        // The bounds are computed independently.  A valid input always leaves
+        // at least one concrete result in their intersection, but retaining
+        // this guard makes the helper robust against future transfer functions.
+        if result.has_value() {
+            result
+        } else {
+            Self::unknown()
+        }
+    }
+
+    const fn signed_hull(min: u64, max: u64) -> (i64, i64) {
+        if max <= i64::MAX as u64 || min >= (i64::MAX as u64) + 1 {
+            (min as i64, max as i64)
+        } else {
+            (i64::MIN, i64::MAX)
+        }
+    }
+
     pub const fn add(self, other: Self) -> Self {
         if !self.has_value() || !other.has_value() {
             return Self::empty();
         }
-        match (self.value(), other.value()) {
-            (Some(left), Some(right)) => Self::from_value(left.wrapping_add(right)),
-            _ => Self::unknown(),
-        }
+        let (min, max) = if self.max <= u64::MAX - other.max {
+            (self.min + other.min, self.max + other.max)
+        } else {
+            (u64::MIN, u64::MAX)
+        };
+        let signed_min = self.smin as i128 + other.smin as i128;
+        let signed_max = self.smax as i128 + other.smax as i128;
+        let (smin, smax) = if signed_min >= i64::MIN as i128 && signed_max <= i64::MAX as i128 {
+            (signed_min as i64, signed_max as i64)
+        } else {
+            (i64::MIN, i64::MAX)
+        };
+        Self::bounded(min, max, smin, smax)
     }
 
     pub const fn subtract(self, other: Self) -> Self {
         if !self.has_value() || !other.has_value() {
             return Self::empty();
         }
-        match (self.value(), other.value()) {
-            (Some(left), Some(right)) => Self::from_value(left.wrapping_sub(right)),
-            _ => Self::unknown(),
-        }
+        let (min, max) = if self.min >= other.max {
+            (self.min - other.max, self.max - other.min)
+        } else {
+            (u64::MIN, u64::MAX)
+        };
+        let signed_min = self.smin as i128 - other.smax as i128;
+        let signed_max = self.smax as i128 - other.smin as i128;
+        let (smin, smax) = if signed_min >= i64::MIN as i128 && signed_max <= i64::MAX as i128 {
+            (signed_min as i64, signed_max as i64)
+        } else {
+            (i64::MIN, i64::MAX)
+        };
+        Self::bounded(min, max, smin, smax)
     }
 
     pub const fn negate(self) -> Self {
         if !self.has_value() {
             return Self::empty();
         }
-        match self.value() {
-            Some(value) => Self::from_value(value.wrapping_neg()),
-            None => Self::unknown(),
-        }
+        let (min, max) = if self.min == 0 && self.max == 0 {
+            (0, 0)
+        } else if self.min > 0 {
+            (self.max.wrapping_neg(), self.min.wrapping_neg())
+        } else {
+            (u64::MIN, u64::MAX)
+        };
+        let (smin, smax) = if self.smin != i64::MIN {
+            (-self.smax, -self.smin)
+        } else {
+            (i64::MIN, i64::MAX)
+        };
+        Self::bounded(min, max, smin, smax)
     }
 
     pub const fn bit_not(self) -> Self {
         if !self.has_value() {
             return Self::empty();
         }
-        match self.value() {
-            Some(value) => Self::from_value(!value),
-            None => Self::unknown(),
-        }
+        Self::bounded(!self.max, !self.min, !self.smax, !self.smin)
     }
 
     pub const fn multiply(self, other: Self) -> Self {
         if !self.has_value() || !other.has_value() {
             return Self::empty();
         }
-        match (self.value(), other.value()) {
-            (Some(left), Some(right)) => Self::from_value(left.wrapping_mul(right)),
-            _ => Self::unknown(),
+        let (min, max) = if self.max == 0 || other.max <= u64::MAX / self.max {
+            (self.min * other.min, self.max * other.max)
+        } else {
+            (u64::MIN, u64::MAX)
+        };
+        let products = [
+            self.smin as i128 * other.smin as i128,
+            self.smin as i128 * other.smax as i128,
+            self.smax as i128 * other.smin as i128,
+            self.smax as i128 * other.smax as i128,
+        ];
+        let mut signed_min = products[0];
+        let mut signed_max = products[0];
+        let mut index = 1;
+        while index < products.len() {
+            if products[index] < signed_min {
+                signed_min = products[index];
+            }
+            if products[index] > signed_max {
+                signed_max = products[index];
+            }
+            index += 1;
         }
+        let (smin, smax) = if signed_min >= i64::MIN as i128 && signed_max <= i64::MAX as i128 {
+            (signed_min as i64, signed_max as i64)
+        } else {
+            (i64::MIN, i64::MAX)
+        };
+        Self::bounded(min, max, smin, smax)
     }
 
     pub const fn checked_div(self, other: Self) -> Option<Self> {
         if !self.has_value() || !other.has_value() {
             return Some(Self::empty());
         }
-        match (self.value(), other.value()) {
-            (_, Some(0)) => None,
-            (Some(dividend), Some(divisor)) => Some(Self::from_value(dividend / divisor)),
-            _ => Some(Self::unknown()),
+        if other.max == 0 {
+            return None;
         }
+        let least_divisor = if other.min == 0 { 1 } else { other.min };
+        let min = self.min / other.max;
+        let max = self.max / least_divisor;
+        let (smin, smax) = Self::signed_hull(min, max);
+        Some(Self::bounded(min, max, smin, smax))
     }
 
     pub const fn divide(self, other: Self) -> Self {
@@ -300,11 +378,16 @@ impl Rnum {
         if !self.has_value() || !other.has_value() {
             return Self::empty();
         }
-        match (self.value(), other.value()) {
-            (_, Some(0)) => Self::empty(),
-            (Some(dividend), Some(divisor)) => Self::from_value(dividend % divisor),
-            _ => Self::unknown(),
+        if other.max == 0 {
+            return Self::empty();
         }
+        let max = if self.max < other.max - 1 {
+            self.max
+        } else {
+            other.max - 1
+        };
+        let (smin, smax) = Self::signed_hull(0, max);
+        Self::bounded(0, max, smin, smax)
     }
 }
 

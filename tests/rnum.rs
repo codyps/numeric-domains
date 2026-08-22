@@ -87,3 +87,40 @@ fn union_and_intersection_have_set_semantics() {
     assert!(!empty.contains_value(0));
     assert!(empty.union(left).contains(left));
 }
+
+#[test]
+fn arithmetic_preserves_non_wrapping_bounds() {
+    let left = Rnum::new(2, 4, 2, 4).unwrap();
+    let right = Rnum::new(5, 7, 5, 7).unwrap();
+
+    assert_eq!((left + right).unsigned_bounds(), (7, 11));
+    assert_eq!((left + right).signed_bounds(), (7, 11));
+    assert_eq!((right - left).unsigned_bounds(), (1, 5));
+    assert_eq!((left * right).unsigned_bounds(), (10, 28));
+    assert_eq!((right / left).unsigned_bounds(), (1, 3));
+    assert_eq!((right % left).unsigned_bounds(), (0, 3));
+    assert_eq!((!left).unsigned_bounds(), (!4, !2));
+}
+
+#[test]
+fn wrapping_only_forgets_the_affected_interpretation() {
+    let near_unsigned_max = Rnum::new(u64::MAX - 1, u64::MAX, -2, -1).unwrap();
+    let one = Rnum::from_value(1);
+    let result = near_unsigned_max + one;
+
+    assert_eq!(result.unsigned_bounds(), (u64::MIN, u64::MAX));
+    assert_eq!(result.signed_bounds(), (-1, 0));
+    assert!(result.contains_value(u64::MAX));
+    assert!(result.contains_value(0));
+}
+
+#[test]
+fn division_ignores_zero_when_nonzero_divisors_are_available() {
+    let dividend = Rnum::new(10, 20, 10, 20).unwrap();
+    let divisor = Rnum::new(0, 4, 0, 4).unwrap();
+    assert_eq!(
+        dividend.checked_div(divisor).unwrap().unsigned_bounds(),
+        (2, 20)
+    );
+    assert_eq!(dividend.checked_div(Rnum::from_value(0)), None);
+}
