@@ -3,6 +3,9 @@ name = "numeric-domains"
 version = "0.1.0"
 edition = "2021"
 license = "MPL-2.0"
+description = "Abstract domains for fixed-width numeric values"
+documentation = "https://docs.rs/numeric-domains"
+repository = "https://github.com/codyps/numeric-domains"
 
 [dev-dependencies]
 proptest = "1.11.0"
