@@ -1,4 +1,4 @@
-use core::ops::{Add, BitAnd, BitOr, BitXor, Not, Shl, Shr};
+use core::ops::{Add, BitAnd, BitOr, BitXor, Not, Shl, Shr, Sub};
 
 /// Tracks which bits "may be 1s" (o) and "may be 0s" (z)
 ///
@@ -6,6 +6,7 @@ use core::ops::{Add, BitAnd, BitOr, BitXor, Not, Shl, Shr};
 /// the number of operations, but as a result the accuracy of the domain is somewhat limited.
 ///
 ///  - ["Abstract Domains for Bit-Level Machine Integer and Floating-point Operations"](https://www-apr.lip6.fr/~mine/publi/article-mine-wing12.pdf)
+///  - Published proceedings entry and DOI: <https://doi.org/10.29007/b63g>
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct Znum {
     z: u64,
@@ -215,6 +216,39 @@ impl Add for Znum {
     }
 }
 
+impl Sub for Znum {
+    type Output = Znum;
+
+    fn sub(self, other: Self) -> Self {
+        if !self.has_value() || !other.has_value() {
+            return Self { z: 0, o: 0 };
+        }
+
+        // Subtraction in the equivalent known-value/unknown-mask domain. The
+        // transfer function is Linux's `tnum_sub`, translated back to the
+        // may-zero/may-one representation:
+        // https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/kernel/bpf/tnum.c
+        // `alpha` and `beta` expose every borrow that may change when the
+        // left or right unknown bits vary.
+        let left_value = self.o & !self.z;
+        let left_mask = self.o & self.z;
+        let right_value = other.o & !other.z;
+        let right_mask = other.o & other.z;
+
+        let value_difference = left_value.wrapping_sub(right_value);
+        let alpha = value_difference.wrapping_add(left_mask);
+        let beta = value_difference.wrapping_sub(right_mask);
+        let borrow_changes = alpha ^ beta;
+        let mask = borrow_changes | left_mask | right_mask;
+        let value = value_difference & !mask;
+
+        Self {
+            o: value | mask,
+            z: !value | mask,
+        }
+    }
+}
+
 impl Shl<u8> for Znum {
     type Output = Znum;
     fn shl(self, shift: u8) -> Self {
@@ -296,13 +330,6 @@ impl Add for Znum {
 */
 
 /*
-impl Sub for Znum {
-    type Output = Znum;
-    fn sub(self, other: Self) -> Self {
-        unimplemented!()
-    }
-}
-
 impl Neg for Znum {
     type Output = Znum;
     fn neg(self) -> Self {

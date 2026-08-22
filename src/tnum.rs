@@ -6,8 +6,10 @@ use core::ops::{Add, BitAnd, BitOr, BitXor, Not, Shl, Shr};
 /// known).
 ///
 /// References:
-///  - <http://bitmath.blogspot.com/2013/08/addition-in-bitfield-domain.html>
-///  - <http://bitmath.blogspot.com/2014/02/addition-in-bitfield-domain-alternative.html>
+///  - Linux's production implementation: <https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/kernel/bpf/tnum.c>
+///  - Linux verifier documentation: <https://docs.kernel.org/bpf/verifier.html#register-value-tracking>
+///  - <https://bitmath.blogspot.com/2013/08/addition-in-bitfield-domain.html>
+///  - <https://bitmath.blogspot.com/2014/02/addition-in-bitfield-domain-alternative.html>
 ///  - "Abstract Domains for Bit-Level Machine Integer and Floating-point Operations"
 ///    ([paper](https://www-apr.lip6.fr/~mine/publi/article-mine-wing12.pdf))
 ///  - <https://www.omnimaga.org/other-computer-languages-help/addition-in-the-bitfield-domain/>
@@ -23,6 +25,15 @@ pub struct Tnum {
 }
 
 impl Tnum {
+    /// The empty set.
+    pub const fn empty() -> Self {
+        Self {
+            value: 0,
+            mask: 0,
+            empty: true,
+        }
+    }
+
     /// Construct a tracking number from its known value and unknown-bit mask.
     ///
     /// Value bits covered by the mask are cleared to maintain the canonical
@@ -41,6 +52,11 @@ impl Tnum {
             mask: 0,
             empty: false,
         }
+    }
+
+    /// Return the canonical `(known_value, unknown_mask)` representation.
+    pub fn parts(&self) -> Option<(u64, u64)> {
+        (!self.empty).then_some((self.value, self.mask))
     }
 
     pub fn is_const(&self) -> bool {
@@ -123,14 +139,6 @@ impl Tnum {
             )
         } else {
             (self.value as i64, (self.value | self.mask) as i64)
-        }
-    }
-
-    fn empty() -> Self {
-        Self {
-            value: 0,
-            mask: 0,
-            empty: true,
         }
     }
 }
@@ -241,7 +249,9 @@ impl Add for Tnum {
             return Self::empty();
         }
         // Carry propagation can make every bit at and above an unknown input
-        // bit unknown. All additions intentionally use machine wrapping.
+        // bit unknown. This is the algorithm used by Linux's `tnum_add`:
+        // https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/kernel/bpf/tnum.c
+        // All additions intentionally use machine wrapping.
         let mask_sum = self.mask.wrapping_add(other.mask);
         let value_sum = self.value.wrapping_add(other.value);
         let sigma = mask_sum.wrapping_add(value_sum);

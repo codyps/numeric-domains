@@ -61,6 +61,12 @@ proptest! {
     }
 
     #[test]
+    fn const_sub_is_wrapping_value(x: u64, y: u64) {
+        let result = Znum::from_value(x) - Znum::from_value(y);
+        prop_assert_eq!(result.value(), Some(x.wrapping_sub(y)));
+    }
+
+    #[test]
     fn union_of_constants_contains_both(x: u64, y: u64) {
         let left = Znum::from_value(x);
         let right = Znum::from_value(y);
@@ -115,6 +121,13 @@ fn empty_domain_is_absorbing_for_addition() {
     let empty = Znum::from_parts(0, 0);
     let result = empty + Znum::from_value(1);
     assert!(!result.has_value());
+}
+
+#[test]
+fn empty_domain_is_absorbing_for_subtraction() {
+    let empty = Znum::from_parts(0, 0);
+    assert!(!(empty - Znum::from_value(1)).has_value());
+    assert!(!(Znum::from_value(1) - empty).has_value());
 }
 
 #[test]
@@ -199,6 +212,7 @@ fn reduced_width_operations_contain_all_concrete_results() {
                     assert!((left | right).contains_value(a | b));
                     assert!((left ^ right).contains_value(a ^ b));
                     assert!((left + right).contains_value(a.wrapping_add(b)));
+                    assert!((left - right).contains_value(a.wrapping_sub(b)));
                 }
             }
         }

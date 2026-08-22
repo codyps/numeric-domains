@@ -7,6 +7,10 @@ Experimental Rust implementations of several abstract domains for 64-bit machine
 - `Znum`: tracks whether each bit may be zero and/or one. Addition wraps at 64 bits and shift
   counts are reduced modulo 64.
 - `Rnum`: a range representation with independent signed and unsigned bounds.
+- `WrappedInterval`: one interval on the circle of integers modulo 2^64.
+- `RangeSet<K>`: a bounded union of disjoint intervals; its capacity is a direct
+  storage/precision tradeoff.
+- `BitRange<K>`: an experimental reduced product of `RangeSet` and `Tnum`.
 
 All three domains provide constant and membership queries, extrema, and signed/unsigned bound
 inspection. They also provide `union` (the least representable domain containing both operands) and
@@ -14,6 +18,11 @@ inspection. They also provide `union` (the least representable domain containing
 `Znum` additionally support bitwise operations and wrapping addition.
 
 This crate is experimental and is not yet published as a stable API.
+
+The newer domains are deliberately small experiments rather than settled APIs. `RangeSet<2>` can
+retain the two pieces produced by wrapping arithmetic and common branch disjunctions. `BitRange<2>`
+represents the intersection of that range information and known-bit information, and exchanges
+cheap bounds and common-prefix facts between the components after operations.
 
 # Misc
 

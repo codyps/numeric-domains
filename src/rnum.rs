@@ -1,4 +1,9 @@
-/// Range number
+/// Range number.
+///
+/// This independent signed/unsigned-bounds representation follows the scalar
+/// range information maintained alongside tracked numbers by the Linux eBPF
+/// verifier:
+/// <https://docs.kernel.org/bpf/verifier.html#register-value-tracking>
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rnum {
     max: u64,
