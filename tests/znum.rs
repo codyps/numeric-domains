@@ -157,7 +157,7 @@ proptest! {
 
 #[test]
 fn common_operations_are_available_in_const_contexts() {
-    assert!(CONST_CONTAINS_ONE);
+    const { assert!(CONST_CONTAINS_ONE) };
     assert_eq!(CONST_UNSIGNED_BOUNDS, Some((0, 3)));
     assert_eq!(CONST_SIGNED_BOUNDS, Some((0, 3)));
     assert_eq!(CONST_DIVISION, Some(CONST_TWO));

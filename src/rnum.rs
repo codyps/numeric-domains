@@ -247,7 +247,7 @@ impl Rnum {
     }
 
     const fn signed_hull(min: u64, max: u64) -> (i64, i64) {
-        if max <= i64::MAX as u64 || min >= (i64::MAX as u64) + 1 {
+        if max <= i64::MAX as u64 || min > i64::MAX as u64 {
             (min as i64, max as i64)
         } else {
             (i64::MIN, i64::MAX)
