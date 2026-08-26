@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/codyps/numeric-domains/compare/v0.1.0...v0.1.1) - 2026-08-26
+
+### Other
+
+- switch to trusted publishing
+- Bump actions/checkout from 6 to 7
+
 ## [0.1.0](https://github.com/codyps/numeric-domains/compare/v0.0.0...v0.1.0) - 2026-08-22
 
 ### Fixed
